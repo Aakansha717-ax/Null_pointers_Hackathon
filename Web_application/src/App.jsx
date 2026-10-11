@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Scale, Upload, FileText, ShieldCheck, Clock3, Search, LoaderCircle, AlertTriangle, ExternalLink, CheckCircle2, Sparkles } from 'lucide-react'
-const API = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const API = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 const nf = 'Not found in the document'
 function Field({ label, value }) {
   const items = Array.isArray(value) ? value : [value]
@@ -23,7 +23,7 @@ export default function App() {
     } catch (err) { setError(`${err.message}. Confirm the Python backend is running at ${API}.`) }
     finally { setLoading(false) }
   }
-  const evidence = result?.evidence || []
+  const evidence = Array.isArray(result?.evidence) ? result.evidence : []
   const tabs = [['overview', 'Case DNA'], ['evidence', 'Evidence'], ['timeline', 'Timeline'], ['document', 'Document']]
   return <div className="app-shell">
     <aside className="sidebar">
@@ -39,7 +39,7 @@ export default function App() {
         <label className="dropzone"><input type="file" accept="application/pdf,.pdf" onChange={e => { setFile(e.target.files?.[0] || null); setError('') }} /><div className="pdf-icon"><FileText size={25} /></div><strong>{file ? file.name : 'Choose a PDF or drop it here'}</strong><span>{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB · Ready to analyze` : 'Use a text-based court judgment for best results'}</span><em>Browse files</em></label>
         {error && <div className="error"><AlertTriangle size={17} />{error}</div>}
         <button className="primary-button" disabled={loading || !file}>{loading ? <><LoaderCircle className="spin" size={18} /> Analyzing document...</> : <><Sparkles size={17} /> Analyze judgment</>}</button>
-        <p className="privacy-note"><ShieldCheck size={14} /> Prototype: files are processed by the local backend and are not saved to MongoDB.</p>
+        <p className="privacy-note"><ShieldCheck size={14} /> Files are processed by the backend. Analysis history is saved to MongoDB when the database is configured.</p>
       </form>
       {!result && <div className="feature-grid">
         <div className="feature"><div className="feature-icon blue"><FileText size={19} /></div><strong>Case DNA</strong><p>Parties, court, legal provisions and outcome.</p></div>
@@ -47,7 +47,7 @@ export default function App() {
         <div className="feature"><div className="feature-icon purple"><Clock3 size={19} /></div><strong>Case timeline</strong><p>Find dates and procedural events in the document.</p></div>
       </div>}
       {result && <div className="results">
-        <div className="results-title"><div><span className="eyebrow">ANALYSIS RESULTS</span><h2>{result.document?.filename || 'Uploaded judgment'}</h2><p>{result.document?.page_count} pages · {result.document?.analysis_mode === 'huggingface' ? 'Hugging Face AI' : 'Heuristic fallback mode'}</p></div><div className="status-pill"><CheckCircle2 size={15} /> Processed</div></div>
+        <div className="results-title"><div><span className="eyebrow">ANALYSIS RESULTS</span><h2>{result.document?.filename || 'Uploaded judgment'}</h2><p>{result.document?.page_count} pages · {result.document?.analysis_mode === 'huggingface_ai' ? 'Hugging Face AI' : 'Extraction fallback mode'}</p></div><div className="status-pill"><CheckCircle2 size={15} /> Processed</div></div>
         {result.warnings?.length > 0 && <div className="warning"><AlertTriangle size={17} /><div><strong>Review before relying on results</strong>{result.warnings.map((w, i) => <p key={i}>{w}</p>)}</div></div>}
         <div className="tabs">{tabs.map(([key, label]) => <button type="button" key={key} className={activeTab === key ? 'tab active-tab' : 'tab'} onClick={() => setActiveTab(key)}>{label}</button>)}</div>
         {activeTab === 'overview' && <div className="result-grid">
@@ -56,10 +56,10 @@ export default function App() {
           <div className="wide outcome"><Field label="Final outcome" value={result.final_outcome} /></div><div className="wide"><Field label="Court reasoning" value={result.court_reasoning} /></div>
         </div>}
         {activeTab === 'evidence' && <div className="evidence-list">{!evidence.length && <p className="muted">No supporting excerpts were detected. Treat extracted fields as unverified.</p>}
-          {evidence.map((item, i) => <article className="evidence-card" key={i}><div className="evidence-meta"><span>{item.field.replaceAll('_', ' ')}</span><b>PDF page {item.page}</b></div><blockquote>{item.quote}</blockquote><button type="button" className="text-button" onClick={() => setActiveTab('document')}>View page details <ExternalLink size={14} /></button></article>)}
+          {evidence.map((item, i) => <article className="evidence-card" key={i}><div className="evidence-meta"><span>{String(item?.field || 'Supporting excerpt').replaceAll('_', ' ')}</span><b>PDF page {item.page ?? 'not supplied'}</b></div><blockquote>{item.quote || item.excerpt || item.text || (typeof item === 'string' ? item : JSON.stringify(item))}</blockquote><button type="button" className="text-button" onClick={() => setActiveTab('document')}>View page details <ExternalLink size={14} /></button></article>)}
         </div>}
-        {activeTab === 'timeline' && <div className="timeline">{(result.timeline || []).length ? result.timeline.map((item, i) => <div className="timeline-item" key={i}><div className="timeline-dot" /><div><strong>{item.date || 'Date not specified'}</strong><p>{item.event || item.description || JSON.stringify(item)}</p><span>PDF page {item.page || 'not supplied'}</span></div></div>) : <p className="muted">No timeline events were extracted.</p>}</div>}
-        {activeTab === 'document' && <div className="page-list">{(result.document?.pages || []).map(p => <details key={p.page}><summary>PDF page {p.page}<span>{p.character_count} characters</span></summary><p>{p.text_preview || 'No text extracted from this page.'}</p></details>)}</div>}
+        {activeTab === 'timeline' && <div className="timeline">{(Array.isArray(result.timeline) ? result.timeline : []).length ? result.timeline.map((item, i) => <div className="timeline-item" key={i}><div className="timeline-dot" /><div><strong>{typeof item === 'string' ? 'Date not specified' : (item?.date || 'Date not specified')}</strong><p>{typeof item === 'string' ? item : (item?.event || item?.description || JSON.stringify(item))}</p><span>PDF page {typeof item === 'string' ? 'not supplied' : (item?.page ?? 'not supplied')}</span></div></div>) : <p className="muted">No timeline events were extracted.</p>}</div>}
+        {activeTab === 'document' && <div className="page-list">{(result.document?.pages || []).map(p => <details key={p.page}><summary>PDF page {p.page}<span>{p.character_count} characters</span></summary><p>{p.text || p.text_preview || 'No text extracted from this page.'}</p></details>)}</div>}
         <div className="result-footer"><ShieldCheck size={16} /><span>{result.verification?.note || 'Always verify extracted facts against the original judgment.'}</span></div>
       </div>}
       <footer>NyayaLens AI <span>·</span> Legal document organization prototype <span>·</span> Not legal advice</footer>
