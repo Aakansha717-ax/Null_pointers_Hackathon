@@ -71,7 +71,13 @@
 
 #next-steps {
   display: flex;
-  border-top: 1px solid var(--border);
+  align-items: center;
+  gap: 11px;
+  padding: 0 10px;
+  color: #b9c4bc;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
   text-align: left;
 
   &>div {
